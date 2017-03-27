@@ -11,7 +11,6 @@
 
 int main()
 {
-	std::cout << "!!!Hello World!!!" << std::endl; // prints !!!Hello World!!!
 	std::cout << "Today's date is: " << QuantLib::Date::todaysDate() << std::endl;
 	return 0;
 }
