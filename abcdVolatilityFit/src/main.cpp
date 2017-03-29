@@ -42,7 +42,7 @@ struct futureDatum
     ql::Real 	convAdj ;
 };
 
-const std::array<datum, 4> depositData
+constexpr std::array<datum, 4> depositData
 {{
 	datum{ 1, ql::Months, 0.0098278 },
 	datum{ 3, ql::Months, 0.0115128 },
@@ -70,27 +70,27 @@ const std::array<futureDatum, 16> futureData
 	futureDatum{ "H0", 97.64 , 0.07855	}
 }};
 
-const std::array<datum, 2> swapData
+constexpr std::array<datum, 2> swapData
 {{
 	datum{ 4, ql::Years, 0.01939880 },
 	datum{ 5, ql::Years, 0.02049567 }
 }};
 
 // all 3M maturity contracts
-const datum mktVols[] =
-{
-	3 , ql::Months, 0.251521478090478,
-	6 , ql::Months, 0.297208210878435,
-	9 , ql::Months, 0.366644109706502,
-	1 , ql::Months, 0.433800427414978,
-	15, ql::Months, 0.485821043603255,
-	18, ql::Months, 0.534148940744967,
-	21, ql::Months, 0.595165151639790,
-	2 , ql::Months, 0.655092846188407,
-	3 , ql::Months, 0.795388077730595,
-	4 , ql::Months, 0.851994683383768,
-	5 , ql::Months, 0.869720024181853
-};
+constexpr std::array<datum, 11> mktVols
+{{
+	datum{ 3 , ql::Months, 0.251521478090478 },
+	datum{ 6 , ql::Months, 0.297208210878435 },
+	datum{ 9 , ql::Months, 0.366644109706502 },
+	datum{ 1 , ql::Years , 0.433800427414978 },
+	datum{ 15, ql::Months, 0.485821043603255 },
+	datum{ 18, ql::Months, 0.534148940744967 },
+	datum{ 21, ql::Months, 0.595165151639790 },
+	datum{ 2 , ql::Years , 0.655092846188407 },
+	datum{ 3 , ql::Years , 0.795388077730595 },
+	datum{ 4 , ql::Years , 0.851994683383768 },
+	datum{ 5 , ql::Years , 0.869720024181853 }
+}};
 
 int main()
 {
@@ -115,7 +115,7 @@ int main()
 			 ql::ModifiedFollowing,
 			 false, ql::Actual360()));
 
-	index->addFixing(settlementDate, depositData[1].rate);
+	index->addFixing(settlementDate, (double)depositData[1].rate, true);
 
 	// create the libor curve
 	std::vector<boost::shared_ptr<ql::RateHelper>> instruments;
@@ -166,31 +166,31 @@ int main()
 		startDates.push_back(calendar.advance(
 			settlementDate, it.n * it.units, ql::Following));
 
-	std::transform(startDates.begin(), startDates.end(), endDates.begin(),
-		[&calendar](ql::Date i)
-		{
-			return calendar.advance(i, 3 * ql::Months, ql::Following);
-		}
-	);
+	std::for_each(startDates.begin(), startDates.end(),
+	[&calendar, &endDates](ql::Date dt)
+	{
+		endDates.push_back(calendar.advance(dt, 3 * ql::Months, ql::Following));
+	});
 
-	std::vector<ql::Time> rateTimes, paymentTimes;
+	std::vector<ql::Time> rateTimes, paymentTimes, accruals;
 
-	std::transform(startDates.begin(), startDates.end(), rateTimes.begin(),
-		[&settlementDate, &curveDc](ql::Date i)
-		{
-			return curveDc.yearFraction(settlementDate, i);
-		}
-	);
+	std::for_each(startDates.begin(), startDates.end(),
+	[&curveDc, &settlementDate, &rateTimes](ql::Date i)
+	{
+		rateTimes.push_back(curveDc.yearFraction(settlementDate, i));
+	});
 
-	std::transform(endDates.begin(), endDates.end(), paymentTimes.begin(),
-		[&settlementDate, &curveDc](ql::Date i)
-		{
-			return curveDc.yearFraction(settlementDate, i);
-		}
-	);
+	std::for_each(endDates.begin(), endDates.end(),
+	[&curveDc, &settlementDate, &paymentTimes](ql::Date i)
+	{
+		paymentTimes.push_back(curveDc.yearFraction(settlementDate, i));
+	});
 
-	// ?
-	auto accruals = std::vector<ql::Real>(rateTimes);
+	int i = 0; std::for_each(rateTimes.begin(), rateTimes.end(),
+	[&i, &paymentTimes, &accruals](ql::Time t)
+	{
+		accruals.push_back(paymentTimes[i++] - t);
+	});
 
 	auto blackVols = std::vector<ql::Volatility>();
 
@@ -200,20 +200,24 @@ int main()
 	ql::AbcdCalibration instVol(std::vector<ql::Time>(
 			rateTimes.begin(), rateTimes.end() - 1), blackVols);
 
-	ql::Real a0 = instVol.a();
-	ql::Real b0 = instVol.b();
-	ql::Real c0 = instVol.c();
-	ql::Real d0 = instVol.d();
-	ql::Real error0 = instVol.error();
-
 	instVol.compute();
 
-	ql::EndCriteria::Type ec = instVol.endCriteria();
-	ql::Real a1 = instVol.a();
-	ql::Real b1 = instVol.b();
-	ql::Real c1 = instVol.c();
-	ql::Real d1 = instVol.d();
-	ql::Real error1 = instVol.error();
+	std::cout
+		<< "calibration completed"
+		<< ": a=" << instVol.a()
+		<< ", b=" << instVol.b()
+		<< ", c=" << instVol.c()
+		<< ", d=" << instVol.d()
+		<< std::endl;
+
+	// create the abcd vol curve
+	ql::AbcdFunction f(instVol.a(), instVol.b(), instVol.c(), instVol.d());
+
+//	std::for_each(paymentTimes.begin(), paymentTimes.end(),
+//	[&instVol](ql::Time & t)
+//	{
+//		std::cout << t << ": " << instVol.value(t) << ", " <<  << std::endl;
+//	});
 
 	return 0;
 

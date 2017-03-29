@@ -7,6 +7,7 @@
 //============================================================================
 
 #include <iostream>
+
 #include <ql/time/all.hpp>
 #include <ql/currencies/america.hpp>
 #include <ql/settings.hpp>
