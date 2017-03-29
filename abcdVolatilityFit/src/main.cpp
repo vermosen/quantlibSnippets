@@ -1,5 +1,5 @@
 //============================================================================
-// Name        : lmmCovariance.cpp
+// Name        : abcdVolatilityFit.cpp
 // Author      : jean-mathieu vermosen
 // Version     :
 // Copyright   : Your copyright notice
